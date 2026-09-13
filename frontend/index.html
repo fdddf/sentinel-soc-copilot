@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SENTINEL · SOC Copilot</title>
+  <link rel="stylesheet" href="/assets/main.css" />
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+
+  <!-- boot overlay -->
+  <section id="boot">
+    <div class="boot-inner">
+      <div class="boot-kicker">Berlin · Bring Your Own Demo Night</div>
+      <h1 class="glitch" data-text="SENTINEL">SENTINEL</h1>
+      <div class="boot-sub">Cybersecurity Copilot on <b class="q">Qdrant</b> × <b class="cg">Cognee</b></div>
+      <pre id="boot-log"></pre>
+      <div class="boot-hint"><kbd>SPACE</kbd> to start</div>
+    </div>
+  </section>
+
+  <header id="topbar">
+    <div class="brand"><span class="logo">◆</span> SENTINEL <span class="thin">// SOC COPILOT</span></div>
+    <div class="chips">
+      <span class="chip q"><i></i><span id="chip-qdrant">Qdrant</span></span>
+      <span class="chip cg"><i></i><span id="chip-cognee">Cognee</span></span>
+      <span class="chip ok"><i></i><span id="chip-llm">100% local · no API keys</span></span>
+    </div>
+    <div class="clock"><span id="view-mode">NETWORK VIEW</span><span id="clock">09:24:11</span></div>
+  </header>
+
+  <aside id="left" class="panel">
+    <div class="panel-title">ALERT QUEUE <span id="alert-count" class="badge">0</span></div>
+    <div id="alerts"></div>
+    <div class="panel-title small">LIVE TELEMETRY <span class="badge dim" id="eps">0 eps</span></div>
+    <div id="ticker"></div>
+  </aside>
+
+  <aside id="right" class="panel">
+    <div class="panel-title">COPILOT <span class="badge dim" id="incident-id">idle</span></div>
+    <div id="steps"></div>
+  </aside>
+
+  <footer id="console">
+    <div class="console-title">QDRANT / COGNEE QUERY LOG</div>
+    <div id="console-lines"></div>
+  </footer>
+
+  <div id="legend"></div>
+
+  <section id="report" hidden>
+    <div class="report-card">
+      <div class="report-head">
+        <span>INCIDENT REPORT</span><span class="dim" id="report-meta"></span>
+        <button id="report-close">ESC</button>
+      </div>
+      <div id="report-body" class="md"></div>
+    </div>
+  </section>
+
+  <div id="hint"><kbd>SPACE</kbd> next · <kbd>B</kbd> back to network · <kbd>G</kbd> graph · <kbd>R</kbd> reset</div>
+  <script type="module" src="/assets/main.js"></script>
+</body>
+</html>
