@@ -148,42 +148,62 @@ const steps = [
     c.done(null, `decoded → <span style="color:#fecdd3">${esc((d.decoded || '').slice(0, 58))}…</span>`);
     logLine(`<span class="verb">DECODE</span> base64/UTF-16LE → ${esc(d.iocs.join(', '))}`);
   },
-  // 3 -> hybrid retrieval
+  // 3 -> hybrid retrieval (opens on the comsvcs alert, where dense vs sparse actually differ)
   async function retrieve() {
-    const c = card(2, 'MAP TO ATT&CK + SIGMA', 'Qdrant · hybrid RRF', 'q');
+    const c = card(2, 'MAP TO ATT&CK + SIGMA', 'Qdrant · weighted RRF', 'q');
     const a = S.analysis;
-    const tabs = a.steps.map((s, i) => `<span class="tab ${i === 0 ? 'on' : ''}" data-i="${i}">#${s.event_id} ${esc(s.alert.slice(0, 28))}…</span>`).join('');
+    const order = a.steps.map((_, i) => i).reverse();
+    const tabs = order.map((i) => `<span class="tab" data-i="${i}">#${a.steps[i].event_id} ${esc(a.steps[i].alert.slice(0, 28))}…</span>`).join('');
     c.body.innerHTML = `<div class="tabs">${tabs}</div><div id="cols"></div>
-      <div class="label">ATT&CK techniques (rank-weighted vote)</div><div class="pills" id="techs"></div>`;
-    const renderCols = (i) => {
-      const r = a.steps[i].retrieval;
-      // highlight hits tagged with this alert's dominant technique (most frequent in its hybrid hits)
+      <div class="label">ATT&CK techniques found (one per alert)</div><div class="pills" id="techs"></div>`;
+    // each alert's dominant technique = most frequent tag in its hybrid hits
+    const tops = a.steps.map((s) => {
       const freq = {};
-      r.hybrid.hits.forEach((h) => h.attack_ids.forEach((id) => { freq[id] = (freq[id] || 0) + 1; }));
-      const top = new Set(Object.entries(freq).sort((x, y) => y[1] - x[1]).slice(0, 1).map(([id]) => id));
-      const col = (key, name) => `<div class="col ${key === 'hybrid' ? 'win' : ''}"><div class="col-head"><span>${name}</span><span class="dim">${r[key].ms}ms</span></div>
-        ${r[key].hits.map((h, j) => `<div class="hit ${h.attack_ids.some((x) => top.has(x)) ? 'good' : ''}" style="animation-delay:${j * 70}ms" title="${esc(h.title)}">
-          <span class="k">${h.kind === 'sigma' ? 'Σ' : 'T'}</span>${esc(h.title)}</div>`).join('')}</div>`;
-      c.body.querySelector('#cols').innerHTML = `<div class="cols">${col('dense', 'DENSE bge')}${col('sparse', 'SPARSE bm25')}${col('hybrid', 'HYBRID rrf')}</div>`;
+      s.retrieval.hybrid.hits.forEach((h) => h.attack_ids.forEach((id) => { freq[id] = (freq[id] || 0) + 1; }));
+      return Object.entries(freq).sort((x, y) => y[1] - x[1])[0]?.[0];
+    });
+    let current = order[0];
+    const renderTechs = () => {
+      const el = c.body.querySelector('#techs');
+      if (!el.dataset.ready) return;
+      el.innerHTML = a.techniques.slice(0, 6).map((t) => {
+        const src = tops.findIndex((x) => x === t.id);
+        const tag = src >= 0 ? `#${a.steps[src].event_id} → ` : '';
+        return `<span class="pill red ${src === current ? '' : 'faded'}">${tag}${t.id} ${esc(t.name)}</span>`;
+      }).join('');
+    };
+    const renderCols = (i) => {
+      current = i;
+      const r = a.steps[i].retrieval;
+      const top = tops[i];
+      const col = (key, name) => {
+        const hits = r[key].hits;
+        // untagged Sigma rules can't be judged, so they are neutral and left out of the count
+        const state = hits.map((h) => (!h.attack_ids.length ? 'na' : h.attack_ids.includes(top) ? 'good' : 'miss'));
+        const n = state.filter((x) => x === 'good').length;
+        const total = state.filter((x) => x !== 'na').length;
+        const grade = n === 0 ? 'bad' : n < total ? 'mid' : 'ok';
+        return `<div class="col ${key === 'hybrid' ? 'win' : ''} ${grade}"><div class="col-head"><span>${name}</span><span class="dim">${r[key].ms}ms</span></div>
+        <div class="verdict ${grade}">${n === 0 ? '✗' : '✓'} ${n}<span>/${total}</span>${n === 0 ? ' MISS' : ''}</div>
+        ${hits.map((h, j) => {
+          const tid = h.attack_ids.includes(top) ? top : h.attack_ids[0] || 'no ATT&CK tag';
+          return `<div class="hit ${state[j]}" style="animation-delay:${j * 70}ms" title="${esc(h.title)}">
+          <div class="hit-title"><span class="mark">${{ good: '✓', miss: '✗', na: '–' }[state[j]]}</span>${esc(h.title.replace(/^T\d{4}(\.\d{3})? /, ''))}</div>
+          <div class="hit-sub"><span class="tid">${esc(tid)}</span><span class="k">${h.kind === 'sigma' ? 'Σ rule' : 'technique'}</span></div></div>`;
+        }).join('')}</div>`;
+      };
+      c.body.querySelector('#cols').innerHTML = `<div class="cols">${col('dense', 'DENSE bge')}${col('sparse', 'SPARSE bm25')}${col('hybrid', 'HYBRID rrf 1:3')}</div>`;
       c.body.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', +t.dataset.i === i));
-      qlog('QUERY', 'threat_kb', `dense|bm25 → prefetch+RRF fusion · "${a.steps[i].decode.behaviour.slice(0, 50)}…"`, r.hybrid.ms);
+      renderTechs();
+      qlog('QUERY', 'threat_kb', `dense|bm25 → prefetch+weighted RRF (1:3) · "${a.steps[i].decode.behaviour.slice(0, 50)}…"`, r.hybrid.ms);
     };
     c.body.querySelectorAll('.tab').forEach((t) => (t.onclick = () => renderCols(+t.dataset.i)));
-    renderCols(0);
+    renderCols(order[0]);
     await sleep(900);
-    c.body.querySelector('#techs').innerHTML = a.techniques.slice(0, 6)
-      .map((t, i) => `<span class="pill red" style="animation-delay:${i * 90}ms">${t.id} ${esc(t.name)}</span>`).join('');
-    S.retrieveTab = () => renderCols(1);
+    c.body.querySelector('#techs').dataset.ready = '1';
+    renderTechs();
     const ms = a.steps.reduce((s, x) => s + x.retrieval.dense.ms + x.retrieval.sparse.ms + x.retrieval.hybrid.ms, 0).toFixed(1);
     c.done(ms, a.techniques.slice(0, 4).map((t) => t.id).join(' · '));
-  },
-  // 3b -> show second alert's retrieval (sparse matters for "comsvcs MiniDump")
-  async function retrieveSecond() {
-    if (S.retrieveTab) {
-      const last = [...$('#steps').children].at(-1);
-      last.classList.remove('collapsed');
-      S.retrieveTab();
-    }
   },
   // 4 -> hunt
   async function hunt() {

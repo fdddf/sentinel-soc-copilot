@@ -85,6 +85,11 @@ def _hit(p) -> dict:
             "level": pl.get("level"), "score": round(p.score, 4), "path": pl.get("path")}
 
 
+# Weighted RRF: BM25 counts 3x. Security text is full of exact tokens (DLL names, cmdlets) that
+# a small embedding model blurs; with equal weights dense noise pushed real hits out of the top 5.
+RRF_WEIGHTS = [1.0, 3.0]  # [dense, bm25], same order as the prefetch list
+
+
 def retrieve(query_text: str, limit: int = 5) -> dict:
     dv = embed.dense([query_text])[0]
     sv = embed.sparse_query(query_text)
@@ -103,7 +108,7 @@ def retrieve(query_text: str, limit: int = 5) -> dict:
         KB_COLLECTION,
         prefetch=[models.Prefetch(query=dv, using="dense", limit=40),
                   models.Prefetch(query=sv, using="bm25", limit=40)],
-        query=models.FusionQuery(fusion=models.Fusion.RRF),
+        query=models.RrfQuery(rrf=models.Rrf(weights=RRF_WEIGHTS)),
         limit=limit, with_payload=True,
     )
     out["hybrid"] = {"ms": _ms(t), "hits": [_hit(p) for p in r.points]}
@@ -114,7 +119,7 @@ def retrieve(query_text: str, limit: int = 5) -> dict:
         KB_COLLECTION,
         prefetch=[models.Prefetch(query=dv, using="dense", limit=40),
                   models.Prefetch(query=sv, using="bm25", limit=40)],
-        query=models.FusionQuery(fusion=models.Fusion.RRF),
+        query=models.RrfQuery(rrf=models.Rrf(weights=RRF_WEIGHTS)),
         query_filter=models.Filter(must=[models.FieldCondition(key="kind", match=models.MatchValue(value="sigma"))]),
         limit=1, with_payload=True,
     )
@@ -122,7 +127,7 @@ def retrieve(query_text: str, limit: int = 5) -> dict:
     return out
 
 
-def techniques_from(retrievals: list[dict], depth: int = 5, min_weight: float = 0.4,
+def techniques_from(retrievals: list[dict], depth: int = 5, min_weight: float = 0.6,
                     min_support: int = 1) -> list[dict]:
     """Vote technique IDs from hybrid hits (RRF rank-weighted); support = #queries that hit it."""
     votes: Counter = Counter()

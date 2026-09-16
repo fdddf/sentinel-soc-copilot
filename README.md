@@ -32,7 +32,7 @@ ATT&CK relationships ─> Cognee graph (Ladybug) + vector index (Qdrant, communi
 | Step | What happens | Technique |
 |---|---|---|
 | ① Decode | base64 / UTF-16LE decoding, IOC extraction | local |
-| ② Map to ATT&CK | Dense vs BM25 vs hybrid, shown side by side | Qdrant `query_points` + `prefetch` + RRF fusion |
+| ② Map to ATT&CK | Dense vs BM25 vs hybrid, shown side by side | Qdrant `query_points` + `prefetch` + weighted RRF (dense 1 : BM25 3) |
 | ③ Hunt | Find hosts that "behave the same" but raised no alert | Qdrant `query_points_groups(group_by=host)` → Recommend API (allowlisted negatives) |
 | ④ Graph reasoning | Attribute the likely APT group, predict the next steps, recommend mitigations, write the incident to memory | Cognee graph (built with `add_data_points`) traversal + incident written back as memory |
 | ⑤ Report | Streamed incident report + generated Sigma rule | Grounded template (switches to a local LLM automatically if Ollama is running) |
@@ -51,8 +51,7 @@ Optional: install Ollama and run `ollama pull qwen2.5:7b`. The executive summary
 "First we strip the obfuscation. We never embed base64 garbage; we embed the behaviour. It's a download cradle to cdn-update.cloud."
 
 **1:30 – SPACE → ② Retrieval**
-"Now we map it to MITRE ATT&CK and 2,400 Sigma rules in Qdrant. Left: dense, middle: BM25, right: hybrid with RRF fusion."
-SPACE to switch to the second alert: "For something like `comsvcs MiniDump`, exact tokens matter. Dense alone misses them, sparse alone lacks context. Hybrid gets both."
+"Now we map it to MITRE ATT&CK and 2,400 Sigma rules in Qdrant. Left: dense, middle: BM25, right: hybrid with RRF fusion. For something like `comsvcs MiniDump`, exact tokens matter. Dense alone misses them completely. BM25 finds them. Hybrid, with keywords weighted higher, gets them all."
 
 **2:15 – SPACE → ③ Hunt (the climax)**
 "The real question: is this the only host? Signatures say yes. We ask Qdrant for the most similar behaviour, grouped by host… Three hosts that never raised an alert come up on top: different payloads, same behaviour. But right below them, rows 4 to 6 are Intune scripts: also encoded, also hidden, but benign, and the scores are almost identical.
