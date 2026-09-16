@@ -233,8 +233,3 @@ The first three layers combine inside a single `query_points` call; the fourth i
 | **graph** | what was *not* observed — who uses these techniques, what comes next, how to mitigate | the relationship data is incomplete; missing edges can't be inferred |
 
 > **The point of the architecture:** vectors find what is similar; the graph infers what was not observed. The three silent hosts were found by vector search; the attacker's likely next steps and the mitigations to deploy came from the graph. Either half alone is not a complete investigation.
-
-## Demo-day checklist
-- [ ] Run `./run.sh` in advance and click through once so the models and caches are warm
-- [ ] Connect the projector, set the browser zoom to 100%, press F for fullscreen
-- [ ] Turn off Wi-Fi and rehearse once to confirm the demo works fully offline
